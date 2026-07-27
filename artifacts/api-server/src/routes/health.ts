@@ -1,6 +1,6 @@
 import { Router } from "express";
-import nodemailer from "nodemailer";
 import { sendTelegram, telegramConfigured } from "../lib/telegram";
+import { emailConfigured, sendEmail } from "../lib/email";
 
 const router = Router();
 
@@ -40,30 +40,22 @@ router.get("/test-notifications", async (req, res) => {
   }
 
   // Test Email
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
   const labEmail = process.env.LAB_EMAIL ?? "pathofixdiagnostics@gmail.com";
+  results.resend_api_key = process.env.RESEND_API_KEY ? "(set)" : "(not set)";
 
-  results.smtp_user = smtpUser ?? "(not set)";
-
-  if (smtpUser && smtpPass) {
+  if (emailConfigured()) {
     try {
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: { user: smtpUser, pass: smtpPass },
-      });
-      await transporter.sendMail({
-        from: smtpUser,
+      await sendEmail({
         to: labEmail,
         subject: "✅ PATHOFIX — Email Test",
-        text: "Test notification — email is working correctly!",
+        html: "<p>Test notification — email is working correctly!</p>",
       });
       results.email = `✅ sent to ${labEmail}`;
     } catch (err: any) {
       results.email = `❌ failed: ${err.message}`;
     }
   } else {
-    results.email = "⚠️ not configured (SMTP_USER or SMTP_PASS missing)";
+    results.email = "⚠️ not configured (RESEND_API_KEY missing)";
   }
 
   req.log.info({ results }, "Notification test results");
