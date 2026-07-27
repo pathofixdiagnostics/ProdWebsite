@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,7 +13,6 @@ import Partner from "./pages/Partner";
 import Contact from "./pages/Contact";
 import BookTest from "./pages/BookTest";
 import Admin from "./pages/Admin";
-import NotFound from "@/pages/not-found";
 import { trackPageview } from "./lib/analytics";
 
 const queryClient = new QueryClient();
@@ -30,7 +29,7 @@ function PublicSite() {
         <Route path="/partner" component={Partner} />
         <Route path="/contact" component={Contact} />
         <Route path="/book" component={BookTest} />
-        <Route component={NotFound} />
+        <Route><Redirect to="/" /></Route>
       </Switch>
     </Layout>
   );
