@@ -213,6 +213,7 @@ function asNullableText(value: unknown): string | null {
 }
 
 function sanitizeBooking(r: Record<string, unknown>) {
+  const statusVal = typeof r.status === "string" && VALID_STATUSES.has(r.status) ? r.status : "pending";
   return {
     id: Number(r.id),
     patientName: asText(r.patientName),
@@ -224,11 +225,14 @@ function sanitizeBooking(r: Record<string, unknown>) {
     preferredTimeSlot: asText(r.preferredTimeSlot),
     address: asNullableText(r.address),
     notes: asNullableText(r.notes),
+    status: statusVal,
+    statusNote: asNullableText(r.statusNote),
     createdAt: toDate(r.createdAt),
   };
 }
 
 function sanitizePartner(r: Record<string, unknown>) {
+  const statusVal = typeof r.status === "string" && VALID_STATUSES.has(r.status) ? r.status : "pending";
   return {
     id: Number(r.id),
     fullName: asText(r.fullName),
@@ -238,6 +242,8 @@ function sanitizePartner(r: Record<string, unknown>) {
     phone: asText(r.phone),
     city: asText(r.city),
     message: asNullableText(r.message),
+    status: statusVal,
+    statusNote: asNullableText(r.statusNote),
     createdAt: toDate(r.createdAt),
   };
 }
@@ -331,8 +337,12 @@ type BookingRow = {
   preferred_time_slot: string;
   address: string | null;
   notes: string | null;
+  status: string;
+  status_note: string | null;
   created_at: string;
 };
+
+const VALID_STATUSES = new Set(["pending", "confirmed", "fulfilled", "rejected"]);
 
 function bookingFilters(req: express.Request) {
   const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -342,6 +352,8 @@ function bookingFilters(req: express.Request) {
     typeof req.query.collectionType === "string" ? req.query.collectionType : "";
   const collectionType =
     collTypeQ === "homeCollection" || collTypeQ === "labDropIn" ? collTypeQ : "";
+  const statusQ = typeof req.query.status === "string" ? req.query.status : "";
+  const status = VALID_STATUSES.has(statusQ) ? statusQ : "";
   const from =
     typeof req.query.from === "string" && ISO_DATE.test(req.query.from)
       ? req.query.from
@@ -353,15 +365,16 @@ function bookingFilters(req: express.Request) {
     ? sql`AND (patient_name ILIKE ${"%" + search + "%"} OR phone ILIKE ${"%" + search + "%"})`
     : sql``;
   const typeCond = collectionType ? sql`AND collection_type = ${collectionType}` : sql``;
+  const statusCond = status ? sql`AND status = ${status}` : sql``;
   const fromCond = from ? sql`AND created_at >= ${from}::date` : sql``;
   const toCond = to ? sql`AND created_at < ${to}::date + interval '1 day'` : sql``;
 
-  return { searchCond, typeCond, fromCond, toCond };
+  return { searchCond, typeCond, statusCond, fromCond, toCond };
 }
 
 router.get("/admin/bookings", requireAdmin, async (req, res) => {
   try {
-    const { searchCond, typeCond, fromCond, toCond } = bookingFilters(req);
+    const { searchCond, typeCond, statusCond, fromCond, toCond } = bookingFilters(req);
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = 20;
     const offset = (page - 1) * limit;
@@ -369,16 +382,16 @@ router.get("/admin/bookings", requireAdmin, async (req, res) => {
     const [rowsResult, countResult] = await Promise.all([
       db.execute<BookingRow>(sql`
         SELECT id, patient_name, phone, email, test_package, preferred_date,
-               collection_type, preferred_time_slot, address, notes, created_at
+               collection_type, preferred_time_slot, address, notes, status, status_note, created_at
         FROM bookings
-        WHERE 1=1 ${searchCond} ${typeCond} ${fromCond} ${toCond}
+        WHERE 1=1 ${searchCond} ${typeCond} ${statusCond} ${fromCond} ${toCond}
         ORDER BY created_at DESC
         LIMIT ${limit} OFFSET ${offset}
       `),
       db.execute<CountRow>(sql`
         SELECT count(*)::int AS count
         FROM bookings
-        WHERE 1=1 ${searchCond} ${typeCond} ${fromCond} ${toCond}
+        WHERE 1=1 ${searchCond} ${typeCond} ${statusCond} ${fromCond} ${toCond}
       `),
     ]);
 
@@ -400,13 +413,13 @@ router.get("/admin/bookings", requireAdmin, async (req, res) => {
 // ── Bookings CSV Export ──────────────────────────────────────────────────
 router.get("/admin/bookings/export", requireAdmin, async (req, res) => {
   try {
-    const { searchCond, typeCond, fromCond, toCond } = bookingFilters(req);
+    const { searchCond, typeCond, statusCond, fromCond, toCond } = bookingFilters(req);
 
     const result = await db.execute<BookingRow>(sql`
       SELECT id, patient_name, phone, email, test_package, preferred_date,
-             collection_type, preferred_time_slot, address, notes, created_at
+             collection_type, preferred_time_slot, address, notes, status, status_note, created_at
       FROM bookings
-      WHERE 1=1 ${searchCond} ${typeCond} ${fromCond} ${toCond}
+      WHERE 1=1 ${searchCond} ${typeCond} ${statusCond} ${fromCond} ${toCond}
       ORDER BY created_at DESC
     `);
 
@@ -424,7 +437,8 @@ router.get("/admin/bookings/export", requireAdmin, async (req, res) => {
 
     const header = [
       "ID", "Patient Name", "Phone", "Email", "Test Package",
-      "Preferred Date", "Collection Type", "Time Slot", "Address", "Notes", "Booked On",
+      "Preferred Date", "Collection Type", "Time Slot", "Address", "Notes",
+      "Status", "Status Note", "Booked On",
     ];
     const csvLines = [
       header.join(","),
@@ -432,7 +446,8 @@ router.get("/admin/bookings/export", requireAdmin, async (req, res) => {
         [
           r.id, r.patient_name, r.phone, r.email, r.test_package, r.preferred_date,
           r.collection_type === "homeCollection" ? "Home Collection" : "Lab Drop-In",
-          r.preferred_time_slot, r.address, r.notes, r.created_at,
+          r.preferred_time_slot, r.address, r.notes,
+          r.status, r.status_note, r.created_at,
         ]
           .map(cell)
           .join(","),
@@ -462,6 +477,8 @@ type PartnerRow = {
   phone: string;
   city: string;
   message: string | null;
+  status: string;
+  status_note: string | null;
   created_at: string;
 };
 
@@ -469,6 +486,8 @@ function partnerFilters(req: express.Request) {
   const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
   const search =
     typeof req.query.search === "string" ? req.query.search.trim().slice(0, 100) : "";
+  const statusQ = typeof req.query.status === "string" ? req.query.status : "";
+  const status = VALID_STATUSES.has(statusQ) ? statusQ : "";
   const from =
     typeof req.query.from === "string" && ISO_DATE.test(req.query.from)
       ? req.query.from
@@ -479,15 +498,16 @@ function partnerFilters(req: express.Request) {
   const searchCond = search
     ? sql`AND (full_name ILIKE ${"%" + search + "%"} OR organization_name ILIKE ${"%" + search + "%"} OR city ILIKE ${"%" + search + "%"})`
     : sql``;
+  const statusCond = status ? sql`AND status = ${status}` : sql``;
   const fromCond = from ? sql`AND created_at >= ${from}::date` : sql``;
   const toCond = to ? sql`AND created_at < ${to}::date + interval '1 day'` : sql``;
 
-  return { searchCond, fromCond, toCond };
+  return { searchCond, statusCond, fromCond, toCond };
 }
 
 router.get("/admin/partners", requireAdmin, async (req, res) => {
   try {
-    const { searchCond, fromCond, toCond } = partnerFilters(req);
+    const { searchCond, statusCond, fromCond, toCond } = partnerFilters(req);
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = 20;
     const offset = (page - 1) * limit;
@@ -495,16 +515,16 @@ router.get("/admin/partners", requireAdmin, async (req, res) => {
     const [rowsResult, countResult] = await Promise.all([
       db.execute<PartnerRow>(sql`
         SELECT id, full_name, organization_name, organization_type,
-               email, phone, city, message, created_at
+               email, phone, city, message, status, status_note, created_at
         FROM partner_requests
-        WHERE 1=1 ${searchCond} ${fromCond} ${toCond}
+        WHERE 1=1 ${searchCond} ${statusCond} ${fromCond} ${toCond}
         ORDER BY created_at DESC
         LIMIT ${limit} OFFSET ${offset}
       `),
       db.execute<CountRow>(sql`
         SELECT count(*)::int AS count
         FROM partner_requests
-        WHERE 1=1 ${searchCond} ${fromCond} ${toCond}
+        WHERE 1=1 ${searchCond} ${statusCond} ${fromCond} ${toCond}
       `),
     ]);
 
@@ -525,13 +545,13 @@ router.get("/admin/partners", requireAdmin, async (req, res) => {
 
 router.get("/admin/partners/export", requireAdmin, async (req, res) => {
   try {
-    const { searchCond, fromCond, toCond } = partnerFilters(req);
+    const { searchCond, statusCond, fromCond, toCond } = partnerFilters(req);
 
     const result = await db.execute<PartnerRow>(sql`
       SELECT id, full_name, organization_name, organization_type,
-             email, phone, city, message, created_at
+             email, phone, city, message, status, status_note, created_at
       FROM partner_requests
-      WHERE 1=1 ${searchCond} ${fromCond} ${toCond}
+      WHERE 1=1 ${searchCond} ${statusCond} ${fromCond} ${toCond}
       ORDER BY created_at DESC
     `);
 
@@ -547,11 +567,11 @@ router.get("/admin/partners/export", requireAdmin, async (req, res) => {
         : s;
     }
 
-    const header = ["ID", "Full Name", "Organization", "Type", "Email", "Phone", "City", "Message", "Received On"];
+    const header = ["ID", "Full Name", "Organization", "Type", "Email", "Phone", "City", "Message", "Status", "Status Note", "Received On"];
     const csvLines = [
       header.join(","),
       ...(rows ?? []).map((r) =>
-        [r.id, r.full_name, r.organization_name, r.organization_type, r.email, r.phone, r.city, r.message, r.created_at]
+        [r.id, r.full_name, r.organization_name, r.organization_type, r.email, r.phone, r.city, r.message, r.status, r.status_note, r.created_at]
           .map(cell).join(","),
       ),
     ];
@@ -563,6 +583,56 @@ router.get("/admin/partners/export", requireAdmin, async (req, res) => {
   } catch (err) {
     req.log?.error({ err }, "Partners export failed");
     res.status(500).json({ error: "Export failed" });
+  }
+});
+
+// ── Status updates ───────────────────────────────────────────────────────
+
+router.patch("/admin/bookings/:id/status", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) {
+    res.status(400).json({ error: "Invalid booking ID." });
+    return;
+  }
+  const { status, statusNote } = (req.body ?? {}) as { status?: unknown; statusNote?: unknown };
+  if (typeof status !== "string" || !VALID_STATUSES.has(status)) {
+    res.status(400).json({ error: "status must be one of: pending, confirmed, fulfilled, rejected." });
+    return;
+  }
+  const note =
+    statusNote === null || statusNote === undefined ? null
+    : typeof statusNote === "string" ? statusNote.trim().slice(0, 500) || null
+    : null;
+  try {
+    await db.execute(sql`UPDATE bookings SET status = ${status}, status_note = ${note} WHERE id = ${id}`);
+    res.json({ ok: true });
+  } catch (err) {
+    req.log?.error({ err }, "Failed to update booking status");
+    res.status(500).json({ error: "Failed to update status." });
+  }
+});
+
+router.patch("/admin/partners/:id/status", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) {
+    res.status(400).json({ error: "Invalid partner request ID." });
+    return;
+  }
+  const { status, statusNote } = (req.body ?? {}) as { status?: unknown; statusNote?: unknown };
+  if (typeof status !== "string" || !VALID_STATUSES.has(status)) {
+    res.status(400).json({ error: "status must be one of: pending, confirmed, fulfilled, rejected." });
+    return;
+  }
+  const note =
+    statusNote === null || statusNote === undefined ? null
+    : typeof statusNote === "string" ? statusNote.trim().slice(0, 500) || null
+    : null;
+  try {
+    await db.execute(sql`UPDATE partner_requests SET status = ${status}, status_note = ${note} WHERE id = ${id}`);
+    res.json({ ok: true });
+  } catch (err) {
+    req.log?.error({ err }, "Failed to update partner request status");
+    res.status(500).json({ error: "Failed to update status." });
   }
 });
 

@@ -64,6 +64,8 @@ type BookingRow = {
   preferred_time_slot: string;
   address: string | null;
   notes: string | null;
+  status: string;
+  status_note: string | null;
   created_at: string;
 };
 
@@ -76,6 +78,8 @@ type PartnerRow = {
   phone: string;
   city: string;
   message: string | null;
+  status: string;
+  status_note: string | null;
   created_at: string;
 };
 
@@ -279,6 +283,28 @@ function HBarTick({ x, y, payload }: { x?: number; y?: number; payload?: { value
   );
 }
 
+// ── Status badge ────────────────────────────────────────────────────────
+
+function StatusBadge({ status, onClick }: { status: string; onClick?: () => void }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    pending:   { label: "Pending",   cls: "bg-amber-50 text-amber-700 border-amber-200" },
+    confirmed: { label: "Confirmed", cls: "bg-blue-50 text-blue-700 border-blue-200" },
+    fulfilled: { label: "Fulfilled", cls: "bg-green-50 text-green-700 border-green-200" },
+    rejected:  { label: "Rejected",  cls: "bg-red-50 text-red-700 border-red-200" },
+  };
+  const cfg = map[status] ?? { label: status, cls: "bg-slate-100 text-slate-600 border-slate-200" };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={onClick ? "Click to update status" : undefined}
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-opacity ${onClick ? "cursor-pointer hover:opacity-75" : "cursor-default"} ${cfg.cls}`}
+    >
+      {cfg.label}
+    </button>
+  );
+}
+
 // ── Date filter row (reusable) ───────────────────────────────────────────
 
 function DateFilterRow({
@@ -343,9 +369,17 @@ export default function Admin() {
   const [partnersLoading, setPartnersLoading] = useState(false);
   const [partnersError, setPartnersError] = useState<string | null>(null);
   const [pSearch, setPSearch] = useState("");
+  const [pStatus, setPStatus] = useState("");
   const [pFrom, setPFrom] = useState("");
   const [pTo, setPTo] = useState("");
   const [exportPartnersBusy, setExportPartnersBusy] = useState(false);
+
+  // Status update modal
+  const [statusModal, setStatusModal] = useState<{ kind: "booking" | "partner"; id: number } | null>(null);
+  const [modalStatus, setModalStatus] = useState("pending");
+  const [modalNote, setModalNote] = useState("");
+  const [statusUpdateBusy, setStatusUpdateBusy] = useState(false);
+  const [statusModalError, setStatusModalError] = useState<string | null>(null);
 
   // Bookings tab
   const [bookings, setBookings] = useState<BookingRow[] | null>(null);
@@ -354,6 +388,7 @@ export default function Admin() {
   const [bookingsError, setBookingsError] = useState<string | null>(null);
   const [bSearch, setBSearch] = useState("");
   const [bCollType, setBCollType] = useState("");
+  const [bStatus, setBStatus] = useState("");
   const [bFrom, setBFrom] = useState("");
   const [bTo, setBTo] = useState("");
   const [exportBusy, setExportBusy] = useState(false);
@@ -405,6 +440,7 @@ export default function Admin() {
     page: number,
     search: string,
     collType: string,
+    status: string,
     from: string,
     to: string,
   ) => {
@@ -414,6 +450,7 @@ export default function Admin() {
       const p = new URLSearchParams({ page: String(page) });
       if (search) p.set("search", search);
       if (collType) p.set("collectionType", collType);
+      if (status) p.set("status", status);
       if (from) p.set("from", from);
       if (to) p.set("to", to);
       const res = await api(`/api/admin/bookings?${p}`);
@@ -434,12 +471,13 @@ export default function Admin() {
     }
   }, []);
 
-  const loadPartners = useCallback(async (page: number, search: string, from: string, to: string) => {
+  const loadPartners = useCallback(async (page: number, search: string, status: string, from: string, to: string) => {
     setPartnersLoading(true);
     setPartnersError(null);
     try {
       const p = new URLSearchParams({ page: String(page) });
       if (search) p.set("search", search);
+      if (status) p.set("status", status);
       if (from) p.set("from", from);
       if (to) p.set("to", to);
       const res = await api(`/api/admin/partners?${p}`);
@@ -494,11 +532,11 @@ export default function Admin() {
     if (phase !== "ready") return;
     if (activeTab === "bookings" && !bookingsInitRef.current) {
       bookingsInitRef.current = true;
-      void loadBookings(1, "", "", "", "");
+      void loadBookings(1, "", "", "", "", "");
     }
     if (activeTab === "partners" && !partnersInitRef.current) {
       partnersInitRef.current = true;
-      void loadPartners(1, "", "", "");
+      void loadPartners(1, "", "", "", "");
     }
     if (activeTab === "insights" && !insightsInitRef.current) {
       insightsInitRef.current = true;
@@ -617,16 +655,69 @@ export default function Admin() {
     }
   }, [downloadBackup, loadStats]);
 
+  // ── Status updates ────────────────────────────────────────────────────
+
+  const openStatusModal = (kind: "booking" | "partner", id: number, currentStatus: string, currentNote: string | null) => {
+    setStatusModal({ kind, id });
+    setModalStatus(currentStatus || "pending");
+    setModalNote(currentNote ?? "");
+    setStatusModalError(null);
+  };
+
+  const saveStatus = useCallback(async () => {
+    if (!statusModal) return;
+    setStatusUpdateBusy(true);
+    setStatusModalError(null);
+    try {
+      const endpoint = statusModal.kind === "booking"
+        ? `/api/admin/bookings/${statusModal.id}/status`
+        : `/api/admin/partners/${statusModal.id}/status`;
+      const res = await api(endpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: modalStatus, statusNote: modalNote.trim() || null }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setStatusModalError(data.error ?? "Failed to update status.");
+        return;
+      }
+      if (statusModal.kind === "booking") {
+        setBookings((prev) =>
+          prev ? prev.map((b) =>
+            b.id === statusModal.id
+              ? { ...b, status: modalStatus, status_note: modalNote.trim() || null }
+              : b,
+          ) : prev,
+        );
+      } else {
+        setPartners((prev) =>
+          prev ? prev.map((p) =>
+            p.id === statusModal.id
+              ? { ...p, status: modalStatus, status_note: modalNote.trim() || null }
+              : p,
+          ) : prev,
+        );
+      }
+      setStatusModal(null);
+    } catch {
+      setStatusModalError("Could not reach the server.");
+    } finally {
+      setStatusUpdateBusy(false);
+    }
+  }, [statusModal, modalStatus, modalNote]);
+
   // ── CSV export ────────────────────────────────────────────────────────
 
   const exportCSV = useCallback(async (
-    search: string, collType: string, from: string, to: string,
+    search: string, collType: string, status: string, from: string, to: string,
   ) => {
     setExportBusy(true);
     try {
       const p = new URLSearchParams();
       if (search) p.set("search", search);
       if (collType) p.set("collectionType", collType);
+      if (status) p.set("status", status);
       if (from) p.set("from", from);
       if (to) p.set("to", to);
       const res = await api(`/api/admin/bookings/export?${p}`);
@@ -645,11 +736,12 @@ export default function Admin() {
     }
   }, []);
 
-  const exportPartnersCSV = useCallback(async (search: string, from: string, to: string) => {
+  const exportPartnersCSV = useCallback(async (search: string, status: string, from: string, to: string) => {
     setExportPartnersBusy(true);
     try {
       const p = new URLSearchParams();
       if (search) p.set("search", search);
+      if (status) p.set("status", status);
       if (from) p.set("from", from);
       if (to) p.set("to", to);
       const res = await api(`/api/admin/partners/export?${p}`);
@@ -986,7 +1078,7 @@ export default function Admin() {
                         onChange={(e) => setBSearch(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter")
-                            void loadBookings(1, bSearch, bCollType, bFrom, bTo);
+                            void loadBookings(1, bSearch, bCollType, bStatus, bFrom, bTo);
                         }}
                         className="pl-9"
                       />
@@ -1000,6 +1092,17 @@ export default function Admin() {
                       <option value="homeCollection">Home Collection</option>
                       <option value="labDropIn">Lab Drop-In</option>
                     </select>
+                    <select
+                      value={bStatus}
+                      onChange={(e) => setBStatus(e.target.value)}
+                      className="h-10 rounded-md border border-input bg-background px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="">All statuses</option>
+                      <option value="pending">Pending</option>
+                      <option value="confirmed">Confirmed</option>
+                      <option value="fulfilled">Fulfilled</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
                   </div>
                   <div className="flex flex-wrap items-end gap-3">
                     <div className="flex flex-col gap-1">
@@ -1011,19 +1114,19 @@ export default function Admin() {
                       <Input type="date" value={bTo} min={bFrom || undefined} onChange={(e) => setBTo(e.target.value)} className="w-40" />
                     </div>
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={() => void loadBookings(1, bSearch, bCollType, bFrom, bTo)} disabled={bookingsLoading} className="gap-1.5">
+                      <Button size="sm" onClick={() => void loadBookings(1, bSearch, bCollType, bStatus, bFrom, bTo)} disabled={bookingsLoading} className="gap-1.5">
                         <Search className="h-4 w-4" />
                         Search
                       </Button>
                       <Button variant="outline" size="sm" className="gap-1.5"
-                        onClick={() => { setBSearch(""); setBCollType(""); setBFrom(""); setBTo(""); void loadBookings(1, "", "", "", ""); }}
+                        onClick={() => { setBSearch(""); setBCollType(""); setBStatus(""); setBFrom(""); setBTo(""); void loadBookings(1, "", "", "", "", ""); }}
                         disabled={bookingsLoading}
                       >
                         <X className="h-4 w-4" />
                         Clear
                       </Button>
                       <Button variant="outline" size="sm" className="gap-1.5 ml-auto"
-                        onClick={() => void exportCSV(bSearch, bCollType, bFrom, bTo)}
+                        onClick={() => void exportCSV(bSearch, bCollType, bStatus, bFrom, bTo)}
                         disabled={exportBusy}
                       >
                         {exportBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
@@ -1062,8 +1165,8 @@ export default function Admin() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-100">
-                          {["Patient", "Phone", "Test Package", "Preferred Date", "Type", "Booked On"].map((h, i) => (
-                            <th key={h} className={`px-4 pb-3 pt-2 text-xs font-semibold uppercase tracking-wider text-slate-500 ${i === 0 ? "text-left" : "text-left"}`}>{h}</th>
+                          {["Patient", "Phone", "Test Package", "Preferred Date", "Type", "Status", "Booked On"].map((h) => (
+                            <th key={h} className="px-4 pb-3 pt-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -1085,6 +1188,19 @@ export default function Admin() {
                                 {collectionLabel(b.collection_type)}
                               </span>
                             </td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-col gap-1">
+                                <StatusBadge
+                                  status={b.status || "pending"}
+                                  onClick={() => openStatusModal("booking", b.id, b.status || "pending", b.status_note)}
+                                />
+                                {b.status_note && (
+                                  <span className="max-w-[140px] truncate text-[11px] text-slate-400" title={b.status_note}>
+                                    {b.status_note}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
                             <td className="px-4 py-3 text-slate-500">{fmtTimestamp(b.created_at)}</td>
                           </tr>
                         ))}
@@ -1102,7 +1218,7 @@ export default function Admin() {
                     <div className="flex gap-1">
                       <Button variant="outline" size="sm"
                         disabled={bookingsMeta.page <= 1 || bookingsLoading}
-                        onClick={() => void loadBookings(bookingsMeta.page - 1, bSearch, bCollType, bFrom, bTo)}
+                        onClick={() => void loadBookings(bookingsMeta.page - 1, bSearch, bCollType, bStatus, bFrom, bTo)}
                         className="gap-1"
                       >
                         <ChevronLeft className="h-4 w-4" />
@@ -1110,7 +1226,7 @@ export default function Admin() {
                       </Button>
                       <Button variant="outline" size="sm"
                         disabled={bookingsMeta.page >= bookingsMeta.pages || bookingsLoading}
-                        onClick={() => void loadBookings(bookingsMeta.page + 1, bSearch, bCollType, bFrom, bTo)}
+                        onClick={() => void loadBookings(bookingsMeta.page + 1, bSearch, bCollType, bStatus, bFrom, bTo)}
                         className="gap-1"
                       >
                         Next
@@ -1138,10 +1254,21 @@ export default function Admin() {
                         placeholder="Search by name, organization or city"
                         value={pSearch}
                         onChange={(e) => setPSearch(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") void loadPartners(1, pSearch, pFrom, pTo); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") void loadPartners(1, pSearch, pStatus, pFrom, pTo); }}
                         className="pl-9"
                       />
                     </div>
+                    <select
+                      value={pStatus}
+                      onChange={(e) => setPStatus(e.target.value)}
+                      className="h-10 rounded-md border border-input bg-background px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="">All statuses</option>
+                      <option value="pending">Pending</option>
+                      <option value="confirmed">Confirmed</option>
+                      <option value="fulfilled">Fulfilled</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
                   </div>
                   <div className="flex flex-wrap items-end gap-3">
                     <div className="flex flex-col gap-1">
@@ -1153,19 +1280,19 @@ export default function Admin() {
                       <Input type="date" value={pTo} min={pFrom || undefined} onChange={(e) => setPTo(e.target.value)} className="w-40" />
                     </div>
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={() => void loadPartners(1, pSearch, pFrom, pTo)} disabled={partnersLoading} className="gap-1.5">
+                      <Button size="sm" onClick={() => void loadPartners(1, pSearch, pStatus, pFrom, pTo)} disabled={partnersLoading} className="gap-1.5">
                         <Search className="h-4 w-4" />
                         Search
                       </Button>
                       <Button variant="outline" size="sm" className="gap-1.5"
-                        onClick={() => { setPSearch(""); setPFrom(""); setPTo(""); void loadPartners(1, "", "", ""); }}
+                        onClick={() => { setPSearch(""); setPStatus(""); setPFrom(""); setPTo(""); void loadPartners(1, "", "", "", ""); }}
                         disabled={partnersLoading}
                       >
                         <X className="h-4 w-4" />
                         Clear
                       </Button>
                       <Button variant="outline" size="sm" className="gap-1.5 ml-auto"
-                        onClick={() => void exportPartnersCSV(pSearch, pFrom, pTo)}
+                        onClick={() => void exportPartnersCSV(pSearch, pStatus, pFrom, pTo)}
                         disabled={exportPartnersBusy}
                       >
                         {exportPartnersBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
@@ -1201,7 +1328,7 @@ export default function Admin() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-100">
-                          {["Contact", "Organization", "Type", "City", "Phone", "Email", "Received On"].map((h) => (
+                          {["Contact", "Organization", "Type", "City", "Phone", "Status", "Received On"].map((h) => (
                             <th key={h} className="px-4 pb-3 pt-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{h}</th>
                           ))}
                         </tr>
@@ -1220,7 +1347,19 @@ export default function Admin() {
                             </td>
                             <td className="px-4 py-3 text-slate-600">{p.city}</td>
                             <td className="px-4 py-3 tabular-nums text-slate-600">{p.phone}</td>
-                            <td className="px-4 py-3 text-slate-600">{p.email}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-col gap-1">
+                                <StatusBadge
+                                  status={p.status || "pending"}
+                                  onClick={() => openStatusModal("partner", p.id, p.status || "pending", p.status_note)}
+                                />
+                                {p.status_note && (
+                                  <span className="max-w-[140px] truncate text-[11px] text-slate-400" title={p.status_note}>
+                                    {p.status_note}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
                             <td className="px-4 py-3 text-slate-500">{fmtTimestamp(p.created_at)}</td>
                           </tr>
                         ))}
@@ -1237,14 +1376,14 @@ export default function Admin() {
                     <div className="flex gap-1">
                       <Button variant="outline" size="sm"
                         disabled={partnersMeta.page <= 1 || partnersLoading}
-                        onClick={() => void loadPartners(partnersMeta.page - 1, pSearch, pFrom, pTo)}
+                        onClick={() => void loadPartners(partnersMeta.page - 1, pSearch, pStatus, pFrom, pTo)}
                         className="gap-1"
                       >
                         <ChevronLeft className="h-4 w-4" /> Prev
                       </Button>
                       <Button variant="outline" size="sm"
                         disabled={partnersMeta.page >= partnersMeta.pages || partnersLoading}
-                        onClick={() => void loadPartners(partnersMeta.page + 1, pSearch, pFrom, pTo)}
+                        onClick={() => void loadPartners(partnersMeta.page + 1, pSearch, pStatus, pFrom, pTo)}
                         className="gap-1"
                       >
                         Next <ChevronRight className="h-4 w-4" />
@@ -1252,6 +1391,76 @@ export default function Admin() {
                     </div>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* ── STATUS MODAL ─────────────────────────────────────────── */}
+        {statusModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            onClick={() => setStatusModal(null)}
+          >
+            <Card
+              className="w-full max-w-sm shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Update Status</CardTitle>
+                  <button
+                    type="button"
+                    onClick={() => setStatusModal(null)}
+                    className="rounded-md p-1 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500">
+                  {statusModal.kind === "booking" ? "Booking" : "Partner request"} #{statusModal.id}
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-slate-700">Status</label>
+                  <select
+                    value={modalStatus}
+                    onChange={(e) => setModalStatus(e.target.value)}
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="fulfilled">Fulfilled</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-slate-700">
+                    Note <span className="font-normal text-slate-400">(optional)</span>
+                  </label>
+                  <textarea
+                    value={modalNote}
+                    onChange={(e) => setModalNote(e.target.value)}
+                    placeholder="e.g. Rejection reason, confirmation details…"
+                    rows={3}
+                    maxLength={500}
+                    className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                  <p className="text-right text-[11px] text-slate-400">{modalNote.length}/500</p>
+                </div>
+                {statusModalError && (
+                  <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{statusModalError}</p>
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setStatusModal(null)} disabled={statusUpdateBusy}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={() => void saveStatus()} disabled={statusUpdateBusy} className="gap-1.5">
+                    {statusUpdateBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Save
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>

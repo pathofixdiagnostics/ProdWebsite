@@ -11,9 +11,11 @@ export const partnerRequestsTable = pgTable("partner_requests", {
   phone: text("phone").notNull(),
   city: text("city").notNull(),
   message: text("message"),
+  status: text("status").notNull().default("pending"),
+  statusNote: text("status_note"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const insertPartnerRequestSchema = createInsertSchema(partnerRequestsTable).omit({ id: true, createdAt: true });
+export const insertPartnerRequestSchema = createInsertSchema(partnerRequestsTable).omit({ id: true, createdAt: true, status: true, statusNote: true });
 export type InsertPartnerRequest = z.infer<typeof insertPartnerRequestSchema>;
 export type PartnerRequest = typeof partnerRequestsTable.$inferSelect;
