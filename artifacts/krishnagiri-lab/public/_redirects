@@ -1,1 +1,3 @@
-/*  /index.html  200
+# SPA routing is handled by 404.html (Cloudflare Pages serves 404.html for unmatched URLs).
+# The rule below triggers CF Pages' loop detection and is intentionally disabled.
+# /* /index.html 200
