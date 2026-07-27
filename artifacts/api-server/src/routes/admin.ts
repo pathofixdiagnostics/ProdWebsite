@@ -452,6 +452,120 @@ router.get("/admin/bookings/export", requireAdmin, async (req, res) => {
   }
 });
 
+// ── Partners List ────────────────────────────────────────────────────────
+type PartnerRow = {
+  id: number;
+  full_name: string;
+  organization_name: string;
+  organization_type: string;
+  email: string;
+  phone: string;
+  city: string;
+  message: string | null;
+  created_at: string;
+};
+
+function partnerFilters(req: express.Request) {
+  const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+  const search =
+    typeof req.query.search === "string" ? req.query.search.trim().slice(0, 100) : "";
+  const from =
+    typeof req.query.from === "string" && ISO_DATE.test(req.query.from)
+      ? req.query.from
+      : null;
+  const to =
+    typeof req.query.to === "string" && ISO_DATE.test(req.query.to) ? req.query.to : null;
+
+  const searchCond = search
+    ? sql`AND (full_name ILIKE ${"%" + search + "%"} OR organization_name ILIKE ${"%" + search + "%"} OR city ILIKE ${"%" + search + "%"})`
+    : sql``;
+  const fromCond = from ? sql`AND created_at >= ${from}::date` : sql``;
+  const toCond = to ? sql`AND created_at < ${to}::date + interval '1 day'` : sql``;
+
+  return { searchCond, fromCond, toCond };
+}
+
+router.get("/admin/partners", requireAdmin, async (req, res) => {
+  try {
+    const { searchCond, fromCond, toCond } = partnerFilters(req);
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = 20;
+    const offset = (page - 1) * limit;
+
+    const [rowsResult, countResult] = await Promise.all([
+      db.execute<PartnerRow>(sql`
+        SELECT id, full_name, organization_name, organization_type,
+               email, phone, city, message, created_at
+        FROM partner_requests
+        WHERE 1=1 ${searchCond} ${fromCond} ${toCond}
+        ORDER BY created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `),
+      db.execute<CountRow>(sql`
+        SELECT count(*)::int AS count
+        FROM partner_requests
+        WHERE 1=1 ${searchCond} ${fromCond} ${toCond}
+      `),
+    ]);
+
+    const partners =
+      (rowsResult as unknown as { rows?: PartnerRow[] }).rows ??
+      (rowsResult as unknown as PartnerRow[]);
+    const countRows =
+      (countResult as unknown as { rows?: CountRow[] }).rows ??
+      (countResult as unknown as CountRow[]);
+    const total = Number(countRows?.[0]?.count ?? 0);
+
+    res.json({ partners, total, page, pages: Math.ceil(total / limit) || 1 });
+  } catch (err) {
+    req.log?.error({ err }, "Failed to load partners list");
+    res.status(500).json({ error: "Failed to load partners" });
+  }
+});
+
+router.get("/admin/partners/export", requireAdmin, async (req, res) => {
+  try {
+    const { searchCond, fromCond, toCond } = partnerFilters(req);
+
+    const result = await db.execute<PartnerRow>(sql`
+      SELECT id, full_name, organization_name, organization_type,
+             email, phone, city, message, created_at
+      FROM partner_requests
+      WHERE 1=1 ${searchCond} ${fromCond} ${toCond}
+      ORDER BY created_at DESC
+    `);
+
+    const rows =
+      (result as unknown as { rows?: PartnerRow[] }).rows ??
+      (result as unknown as PartnerRow[]);
+
+    function cell(v: unknown): string {
+      if (v == null) return "";
+      const s = String(v);
+      return s.includes(",") || s.includes('"') || s.includes("\n")
+        ? `"${s.replace(/"/g, '""')}"`
+        : s;
+    }
+
+    const header = ["ID", "Full Name", "Organization", "Type", "Email", "Phone", "City", "Message", "Received On"];
+    const csvLines = [
+      header.join(","),
+      ...(rows ?? []).map((r) =>
+        [r.id, r.full_name, r.organization_name, r.organization_type, r.email, r.phone, r.city, r.message, r.created_at]
+          .map(cell).join(","),
+      ),
+    ];
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="pathofix-partners-${stamp}.csv"`);
+    res.send(csvLines.join("\r\n"));
+  } catch (err) {
+    req.log?.error({ err }, "Partners export failed");
+    res.status(500).json({ error: "Export failed" });
+  }
+});
+
 // ── Insights ─────────────────────────────────────────────────────────────
 router.get("/admin/insights", requireAdmin, async (req, res) => {
   try {

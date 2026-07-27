@@ -67,6 +67,18 @@ type BookingRow = {
   created_at: string;
 };
 
+type PartnerRow = {
+  id: number;
+  full_name: string;
+  organization_name: string;
+  organization_type: string;
+  email: string;
+  phone: string;
+  city: string;
+  message: string | null;
+  created_at: string;
+};
+
 type InsightsData = {
   testPackages: { name: string; count: number }[];
   collectionTypes: { type: string; count: number }[];
@@ -315,7 +327,7 @@ export default function Admin() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Tab
-  const [activeTab, setActiveTab] = useState<"overview" | "bookings" | "insights">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "bookings" | "partners" | "insights">("overview");
 
   // Overview tab
   const [stats, setStats] = useState<Stats | null>(null);
@@ -324,6 +336,16 @@ export default function Admin() {
   const [filterFrom, setFilterFrom] = useState("");
   const [filterTo, setFilterTo] = useState("");
   const [chartTab, setChartTab] = useState<"bookings" | "partners" | "visits">("bookings");
+
+  // Partners tab
+  const [partners, setPartners] = useState<PartnerRow[] | null>(null);
+  const [partnersMeta, setPartnersMeta] = useState({ total: 0, page: 1, pages: 1 });
+  const [partnersLoading, setPartnersLoading] = useState(false);
+  const [partnersError, setPartnersError] = useState<string | null>(null);
+  const [pSearch, setPSearch] = useState("");
+  const [pFrom, setPFrom] = useState("");
+  const [pTo, setPTo] = useState("");
+  const [exportPartnersBusy, setExportPartnersBusy] = useState(false);
 
   // Bookings tab
   const [bookings, setBookings] = useState<BookingRow[] | null>(null);
@@ -351,6 +373,7 @@ export default function Admin() {
 
   // Track first-visit for each tab
   const bookingsInitRef = useRef(false);
+  const partnersInitRef = useRef(false);
   const insightsInitRef = useRef(false);
 
   useEffect(() => {
@@ -411,6 +434,27 @@ export default function Admin() {
     }
   }, []);
 
+  const loadPartners = useCallback(async (page: number, search: string, from: string, to: string) => {
+    setPartnersLoading(true);
+    setPartnersError(null);
+    try {
+      const p = new URLSearchParams({ page: String(page) });
+      if (search) p.set("search", search);
+      if (from) p.set("from", from);
+      if (to) p.set("to", to);
+      const res = await api(`/api/admin/partners?${p}`);
+      if (res.status === 401) { setPhase("login"); return; }
+      if (!res.ok) throw new Error();
+      const data = (await res.json()) as { partners: PartnerRow[]; total: number; page: number; pages: number };
+      setPartners(data.partners);
+      setPartnersMeta({ total: data.total, page: data.page, pages: data.pages });
+    } catch {
+      setPartnersError("Could not load partner requests.");
+    } finally {
+      setPartnersLoading(false);
+    }
+  }, []);
+
   const loadInsights = useCallback(async (from: string, to: string) => {
     setInsightsLoading(true);
     setInsightsError(null);
@@ -452,11 +496,15 @@ export default function Admin() {
       bookingsInitRef.current = true;
       void loadBookings(1, "", "", "", "");
     }
+    if (activeTab === "partners" && !partnersInitRef.current) {
+      partnersInitRef.current = true;
+      void loadPartners(1, "", "", "");
+    }
     if (activeTab === "insights" && !insightsInitRef.current) {
       insightsInitRef.current = true;
       void loadInsights("", "");
     }
-  }, [activeTab, phase, loadBookings, loadInsights]);
+  }, [activeTab, phase, loadBookings, loadPartners, loadInsights]);
 
   // ── Auth handlers ─────────────────────────────────────────────────────
 
@@ -492,8 +540,10 @@ export default function Admin() {
     await api("/api/admin/logout", { method: "POST" }).catch(() => {});
     setStats(null);
     setBookings(null);
+    setPartners(null);
     setInsights(null);
     bookingsInitRef.current = false;
+    partnersInitRef.current = false;
     insightsInitRef.current = false;
     setPhase("login");
   }, []);
@@ -595,6 +645,29 @@ export default function Admin() {
     }
   }, []);
 
+  const exportPartnersCSV = useCallback(async (search: string, from: string, to: string) => {
+    setExportPartnersBusy(true);
+    try {
+      const p = new URLSearchParams();
+      if (search) p.set("search", search);
+      if (from) p.set("from", from);
+      if (to) p.set("to", to);
+      const res = await api(`/api/admin/partners/export?${p}`);
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const cd = res.headers.get("Content-Disposition") ?? "";
+      const match = cd.match(/filename="([^"]+)"/);
+      const name = match?.[1] ?? `pathofix-partners-${Date.now()}.csv`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExportPartnersBusy(false);
+    }
+  }, []);
+
   // ── Auth phase renders ────────────────────────────────────────────────
 
   if (phase === "loading") {
@@ -683,9 +756,15 @@ export default function Admin() {
     ? insights.collectionTypes.reduce((s, c) => s + c.count, 0)
     : 0;
 
+  const ORG_TYPE_LABELS: Record<string, string> = {
+    hospital: "Hospital", clinic: "Clinic", doctor: "Independent Doctor",
+    healthCenter: "Health Center", collectionCenter: "Collection Center",
+  };
+
   const TABS = [
     { key: "overview" as const, label: "Overview", icon: BarChart2 },
     { key: "bookings" as const, label: "Bookings", icon: CalendarCheck },
+    { key: "partners" as const, label: "Partners", icon: Handshake },
     { key: "insights" as const, label: "Insights", icon: Globe },
   ];
 
@@ -1036,6 +1115,139 @@ export default function Admin() {
                       >
                         Next
                         <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* ── PARTNERS TAB ─────────────────────────────────────────── */}
+        {activeTab === "partners" && (
+          <div className="space-y-6">
+            {/* Filter bar */}
+            <Card className="border-slate-200 shadow-sm">
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <Input
+                        placeholder="Search by name, organization or city"
+                        value={pSearch}
+                        onChange={(e) => setPSearch(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") void loadPartners(1, pSearch, pFrom, pTo); }}
+                        className="pl-9"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-slate-500">From</label>
+                      <Input type="date" value={pFrom} max={pTo || undefined} onChange={(e) => setPFrom(e.target.value)} className="w-40" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-slate-500">To</label>
+                      <Input type="date" value={pTo} min={pFrom || undefined} onChange={(e) => setPTo(e.target.value)} className="w-40" />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => void loadPartners(1, pSearch, pFrom, pTo)} disabled={partnersLoading} className="gap-1.5">
+                        <Search className="h-4 w-4" />
+                        Search
+                      </Button>
+                      <Button variant="outline" size="sm" className="gap-1.5"
+                        onClick={() => { setPSearch(""); setPFrom(""); setPTo(""); void loadPartners(1, "", "", ""); }}
+                        disabled={partnersLoading}
+                      >
+                        <X className="h-4 w-4" />
+                        Clear
+                      </Button>
+                      <Button variant="outline" size="sm" className="gap-1.5 ml-auto"
+                        onClick={() => void exportPartnersCSV(pSearch, pFrom, pTo)}
+                        disabled={exportPartnersBusy}
+                      >
+                        {exportPartnersBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                        Export CSV
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {partnersError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {partnersError}
+              </div>
+            )}
+
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-slate-900">
+                  {partnersLoading ? "Loading…" : `${partnersMeta.total} partner request${partnersMeta.total !== 1 ? "s" : ""}`}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {partnersLoading && partners === null ? (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : partners !== null && partners.length === 0 ? (
+                  <div className="py-16 text-center text-sm text-slate-400">No partner requests found.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-100">
+                          {["Contact", "Organization", "Type", "City", "Phone", "Email", "Received On"].map((h) => (
+                            <th key={h} className="px-4 pb-3 pt-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(partners ?? []).map((p) => (
+                          <tr key={p.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50">
+                            <td className="px-4 py-3 font-medium text-slate-800">{p.full_name}</td>
+                            <td className="max-w-[160px] px-4 py-3 text-slate-600">
+                              <span className="line-clamp-1" title={p.organization_name}>{p.organization_name}</span>
+                            </td>
+                            <td className="px-4 py-3 text-slate-600">
+                              <span className="inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
+                                {ORG_TYPE_LABELS[p.organization_type] ?? p.organization_type}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-slate-600">{p.city}</td>
+                            <td className="px-4 py-3 tabular-nums text-slate-600">{p.phone}</td>
+                            <td className="px-4 py-3 text-slate-600">{p.email}</td>
+                            <td className="px-4 py-3 text-slate-500">{fmtTimestamp(p.created_at)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {partnersMeta.pages > 1 && (
+                  <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
+                    <p className="text-xs text-slate-500">
+                      Page {partnersMeta.page} of {partnersMeta.pages} &nbsp;·&nbsp; {partnersMeta.total} total
+                    </p>
+                    <div className="flex gap-1">
+                      <Button variant="outline" size="sm"
+                        disabled={partnersMeta.page <= 1 || partnersLoading}
+                        onClick={() => void loadPartners(partnersMeta.page - 1, pSearch, pFrom, pTo)}
+                        className="gap-1"
+                      >
+                        <ChevronLeft className="h-4 w-4" /> Prev
+                      </Button>
+                      <Button variant="outline" size="sm"
+                        disabled={partnersMeta.page >= partnersMeta.pages || partnersLoading}
+                        onClick={() => void loadPartners(partnersMeta.page + 1, pSearch, pFrom, pTo)}
+                        className="gap-1"
+                      >
+                        Next <ChevronRight className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
