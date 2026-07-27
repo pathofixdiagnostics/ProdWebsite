@@ -25,9 +25,10 @@ export function PromoBanner() {
 
   return (
     <div
-      className="pathofix-marquee relative w-full overflow-hidden bg-gradient-to-r from-primary via-primary/90 to-secondary text-primary-foreground shadow-sm"
+      className="pathofix-marquee relative w-full overflow-hidden bg-gradient-to-r from-primary via-primary/90 to-secondary text-primary-foreground shadow-sm cursor-pointer"
       role="region"
-      aria-label="Special offer"
+      aria-label="Special offer — click to learn more"
+      onClick={() => document.getElementById("aarogya")?.scrollIntoView({ behavior: "smooth" })}
     >
       <div className="pathofix-marquee-track py-2.5">
         {/* Two identical halves make the scroll loop seamlessly */}
