@@ -1,0 +1,44 @@
+# ────────────────────────────────────────────────────────────────
+# Public entry point for the single-host deployment. Builds the Vite
+# static site and serves it with Caddy, which also reverse-proxies /api
+# to the api container and provisions HTTPS automatically.
+# ────────────────────────────────────────────────────────────────
+
+# ---- Build stage -------------------------------------------------
+FROM node:24-slim AS build
+
+RUN npm install -g pnpm@10
+
+WORKDIR /app
+
+# Full workspace manifests so the frozen lockfile validates
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json tsconfig.json ./
+COPY lib/api-zod/package.json ./lib/api-zod/
+COPY lib/api-client-react/package.json ./lib/api-client-react/
+COPY lib/api-spec/package.json ./lib/api-spec/
+COPY lib/db/package.json ./lib/db/
+COPY artifacts/api-server/package.json ./artifacts/api-server/
+COPY artifacts/krishnagiri-lab/package.json ./artifacts/krishnagiri-lab/
+COPY artifacts/mockup-sandbox/package.json ./artifacts/mockup-sandbox/
+COPY scripts/package.json ./scripts/
+
+RUN pnpm install --frozen-lockfile --filter "@workspace/krishnagiri-lab..."
+
+COPY lib ./lib
+COPY artifacts/krishnagiri-lab ./artifacts/krishnagiri-lab
+
+# Same-origin in this setup: the app calls relative /api, which Caddy proxies.
+# VITE_API_URL is intentionally left unset.
+ENV BASE_PATH=/
+RUN pnpm --filter @workspace/krishnagiri-lab run build
+
+# ---- Runtime stage ----------------------------------------------
+FROM caddy:2-alpine
+
+COPY docker/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/artifacts/krishnagiri-lab/dist/public /srv
+
+# Default to plain-HTTP local stack; override SITE_DOMAIN in production
+ENV SITE_DOMAIN=:80
+
+EXPOSE 80 443

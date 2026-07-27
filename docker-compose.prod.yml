@@ -1,0 +1,88 @@
+# ────────────────────────────────────────────────────────────────
+# PathoFix Diagnostics — production, single host (one VPS).
+# Everything runs here: database, API, and the public site behind Caddy
+# (automatic HTTPS). One machine, one place to debug.
+#
+#   1. Copy .env.example → .env and fill it in (see DEPLOYMENT.md).
+#   2. docker compose -f docker-compose.prod.yml up -d --build
+#
+# Only Caddy is exposed to the internet (80/443). Postgres and the API are
+# reachable only on the internal compose network.
+# ────────────────────────────────────────────────────────────────
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pathofix
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
+      POSTGRES_DB: pathofix
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pathofix -d pathofix"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.migrate
+    environment:
+      DATABASE_URL: "postgres://pathofix:${POSTGRES_PASSWORD}@db:5432/pathofix"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: "5000"
+      DATABASE_URL: "postgres://pathofix:${POSTGRES_PASSWORD}@db:5432/pathofix"
+      # Admin console (generate with scripts/hash-admin-password.mjs)
+      ADMIN_PASSWORD_HASH: "${ADMIN_PASSWORD_HASH:?set ADMIN_PASSWORD_HASH in .env}"
+      ADMIN_SESSION_SECRET: "${ADMIN_SESSION_SECRET:?set ADMIN_SESSION_SECRET in .env}"
+      # Optional notifications
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASS: "${SMTP_PASS:-}"
+      LAB_EMAIL: "${LAB_EMAIL:-}"
+      TG_BOT_TOKEN: "${TG_BOT_TOKEN:-}"
+      TG_CHAT_ID: "${TG_CHAT_ID:-}"
+      # Same-origin behind Caddy, so CORS stays unset. Only needed if you
+      # ever serve the frontend from a different origin.
+      CORS_ORIGIN: "${CORS_ORIGIN:-}"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  caddy:
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+    environment:
+      SITE_DOMAIN: "${SITE_DOMAIN:?set SITE_DOMAIN in .env}"
+      ACME_EMAIL: "${ACME_EMAIL:-}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data # persists TLS certificates across restarts
+      - caddy_config:/config
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,384 @@
+Use this **Replit-specific prompt**. It tells Replit Agent exactly what to build, how to structure it, and how to handle the email form.
+
+---
+
+# REPLIT AGENT PROMPT
+
+Build a **production-ready diagnostic laboratory website** for a medical laboratory located in **Krishnagiri, Tamil Nadu, India**.
+
+The website should look like a modern hospital/laboratory website similar to Apollo Diagnostics, Metropolis, Thyrocare, or Neuberg.
+
+Use:
+
+* Next.js 15
+* TypeScript
+* Tailwind CSS
+* Responsive design (mobile-first)
+* SEO optimized
+* Server Actions/API Routes
+* Nodemailer for email notifications
+* Modern animations using Framer Motion
+* Professional healthcare color palette (blue, white, teal)
+* Clean cards, gradients, icons, shadows, and premium medical UI
+
+---
+
+# BUSINESS DETAILS
+
+Laboratory Name:
+"Krishnagiri Diagnostic Laboratory"
+
+Location:
+Krishnagiri, Tamil Nadu
+
+Google Maps:
+[https://maps.app.goo.gl/qiPC3oDfSWo3ZLf76](https://maps.app.goo.gl/qiPC3oDfSWo3ZLf76)
+
+Phone:
+04343-356314
+
+Mobile:
+7200883952
+
+WhatsApp:
+7200883952
+
+Email:
+[info@krishnagirilab.com](mailto:info@krishnagirilab.com)
+
+---
+
+# WEBSITE GOALS
+
+The website should:
+
+1. Generate laboratory test bookings
+2. Generate calls and WhatsApp inquiries
+3. Showcase facilities
+4. Showcase test packages
+5. Display ongoing offers and discounts
+6. Allow hospitals, clinics, doctors, and collection centers to partner with the laboratory
+7. Send partnership requests directly to email
+8. Improve local SEO rankings for Krishnagiri laboratory searches
+
+---
+
+# DESIGN REQUIREMENTS
+
+Create a premium healthcare UI.
+
+Include:
+
+* Sticky navigation
+* Smooth scrolling
+* Hero banner
+* Floating WhatsApp button
+* Call Now button
+* Modern footer
+* Glassmorphism cards
+* Hover effects
+* Professional healthcare imagery
+* Mobile responsive design
+* Fast loading
+
+Use healthcare-related SVG icons throughout.
+
+---
+
+# PAGES
+
+Create the following pages:
+
+## Home
+
+### Hero Section
+
+Headline:
+
+"Advanced Diagnostic Laboratory in Krishnagiri"
+
+Subheadline:
+
+"Fast, Accurate & Affordable Lab Testing with Trusted Medical Experts"
+
+Buttons:
+
+* Book a Test
+* Partner With Us
+* Call Now
+
+Include medical-themed illustration/image.
+
+---
+
+## About Us
+
+Show:
+
+* Laboratory overview
+* Years of service
+* Expert technicians
+* Modern equipment
+* Accurate reporting
+
+---
+
+## Facilities
+
+Display cards for:
+
+* Fully Automated Analyzer
+* Biochemistry Lab
+* Hematology Lab
+* Immunology Testing
+* Clinical Pathology
+* Home Sample Collection
+* Digital Reports
+* Quality Assurance
+
+Each card should have icon, title and description.
+
+---
+
+# TESTS & PACKAGES
+
+Create attractive package cards.
+
+Use information from the provided laboratory poster.
+
+## Basic Health Checks
+
+* Blood Glucose (Fasting & Post Meal)
+* CBC
+* Urine Routine
+* Serum Electrolytes
+* Thyroid Profile
+
+---
+
+## Heart & Lipid Profile
+
+* Total Cholesterol
+* HDL
+* LDL
+* VLDL
+* Cardiac Risk Markers
+* Lipid Ratio Analysis
+
+---
+
+## Liver Function Test
+
+* Bilirubin
+* SGOT
+* SGPT
+* Protein
+* Albumin
+* Globulin
+
+---
+
+## Thyroid Function Tests
+
+* T3
+* T4
+* TSH
+* FT3
+* FT4
+
+---
+
+## Renal Function Test
+
+* Urea
+* Creatinine
+* Uric Acid
+* Electrolytes
+
+---
+
+## Diabetic Screening
+
+* Fasting Blood Sugar
+* Post Prandial Sugar
+* HbA1c
+* GTT
+
+---
+
+## Women Health Package
+
+* Hormone Tests
+* Thyroid Profile
+* CBC
+* Urine
+* Antenatal Screening
+
+---
+
+## Full Body Checkup
+
+* CBC
+* RFT
+* LFT
+* Thyroid Panel
+* Lipid Profile
+* Blood Sugar
+
+---
+
+## Viral & Special Tests
+
+* HIV
+* HBsAg
+* HCV
+* VDRL
+* PT
+* APTT
+* ESR
+* RA Factor
+* CRP
+* Uric Acid
+
+---
+
+# OFFERS & DISCOUNTS SECTION
+
+Create modern promotional cards.
+
+Examples:
+
+* Full Body Checkup - 20% OFF
+* Women Health Package - 15% OFF
+* Senior Citizen Discount - 10% OFF
+* Free Home Collection Above ₹999
+
+Make discounts editable through a JSON configuration file.
+
+---
+
+# WHY CHOOSE US
+
+Display cards:
+
+* Fast & Accurate Reports
+* Experienced Lab Technicians
+* Affordable Packages
+* Home Sample Collection
+* Advanced Equipment
+* Trusted Diagnostics
+
+---
+
+# PARTNER WITH US PAGE
+
+Create a professional form for:
+
+* Hospitals
+* Clinics
+* Doctors
+* Health Centers
+* Collection Centers
+
+Fields:
+
+* Full Name
+* Organization Name
+* Organization Type
+* Email
+* Phone
+* City
+* Message
+
+---
+
+# EMAIL FUNCTIONALITY
+
+When the form is submitted:
+
+1. Save data
+2. Send email immediately
+
+Use Nodemailer.
+
+Email subject:
+
+New Laboratory Partnership Request
+
+Send to:
+
+[partner@krishnagirilab.com](mailto:partner@krishnagirilab.com)
+
+Email should contain all submitted details.
+
+Show success message:
+
+"Thank you. Our partnership team will contact you shortly."
+
+---
+
+# CONTACT PAGE
+
+Display:
+
+Address:
+Krishnagiri, Tamil Nadu
+
+Phone:
+04343-356314
+
+Mobile:
+7200883952
+
+Email:
+[info@krishnagirilab.com](mailto:info@krishnagirilab.com)
+
+Embed Google Maps.
+
+Include contact form.
+
+---
+
+# SEO REQUIREMENTS
+
+Generate SEO content for:
+
+* Diagnostic Laboratory in Krishnagiri
+* Blood Test in Krishnagiri
+* Full Body Checkup in Krishnagiri
+* Thyroid Test in Krishnagiri
+* Home Sample Collection in Krishnagiri
+* Best Medical Laboratory in Krishnagiri
+
+Generate:
+
+* Meta titles
+* Meta descriptions
+* Open Graph tags
+* Structured Data (JSON-LD)
+
+---
+
+# REPLIT DEPLOYMENT
+
+Create:
+
+* Complete folder structure
+* .env.example
+* README.md
+* Installation instructions
+* Deployment instructions for Replit
+
+Environment Variables:
+
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=yourgmail@gmail.com
+SMTP_PASS=your-app-password
+PARTNER_EMAIL=partner@krishnagirilab.com
+```
+
+Ensure all code runs successfully in Replit without modification.
+
+Generate complete production-ready code with modern UI, animations, accessibility support, and optimized performance.

@@ -1,0 +1,35 @@
+{
+	# Global options block intentionally minimal.
+	# To register a contact email with Let's Encrypt (renewal notices), set
+	# ACME_EMAIL and mount a custom Caddyfile that adds: email {$ACME_EMAIL}
+}
+
+# SITE_DOMAIN examples:
+#   yourdomain.com          → automatic public HTTPS via Let's Encrypt
+#   yourdomain.com, www.yourdomain.com  → both served
+#   :80                     → plain HTTP (local testing, no certificate)
+{$SITE_DOMAIN} {
+	encode gzip zstd
+
+	# API → the api container on the internal compose network
+	@api path /api/*
+	handle @api {
+		reverse_proxy api:5000
+	}
+
+	# Everything else → the static site, with SPA fallback
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	# Security headers (HSTS required by the data-protection policy)
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}

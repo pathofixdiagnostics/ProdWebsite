@@ -1,0 +1,32 @@
+# ────────────────────────────────────────────────────────────────
+# One-shot schema push. Runs `drizzle-kit push` against Postgres to
+# create the `bookings`, `partner_requests` and `page_views` tables,
+# then exits. Used by docker-compose before the API starts.
+# ────────────────────────────────────────────────────────────────
+FROM node:24-slim
+
+RUN npm install -g pnpm@10
+
+WORKDIR /app
+
+# Full workspace manifests so the frozen lockfile validates
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json tsconfig.json ./
+COPY lib/api-zod/package.json ./lib/api-zod/
+COPY lib/api-client-react/package.json ./lib/api-client-react/
+COPY lib/api-spec/package.json ./lib/api-spec/
+COPY lib/db/package.json ./lib/db/
+COPY artifacts/api-server/package.json ./artifacts/api-server/
+COPY artifacts/krishnagiri-lab/package.json ./artifacts/krishnagiri-lab/
+COPY artifacts/mockup-sandbox/package.json ./artifacts/mockup-sandbox/
+COPY scripts/package.json ./scripts/
+
+# db package + its dev tooling (drizzle-kit) from the lockfile
+RUN pnpm install --frozen-lockfile --filter "@workspace/db..."
+
+# drizzle-kit reads the config + schema source at runtime
+COPY lib ./lib
+
+WORKDIR /app/lib/db
+
+# --force skips interactive confirmations so it runs unattended
+CMD ["pnpm", "run", "push-force"]

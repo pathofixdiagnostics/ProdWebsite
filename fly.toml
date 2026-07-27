@@ -1,0 +1,33 @@
+# Fly.io configuration for the PathoFix API server.
+# App name must be globally unique — change it if "pathofix-api" is taken
+# (then use the same name everywhere in DEPLOYMENT.md).
+
+app = "pathofix-api"
+primary_region = "maa" # Chennai — closest region to Krishnagiri
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  LOG_LEVEL = "info"
+  # Secrets (DATABASE_URL, SMTP_*, TG_*) are set with `fly secrets set`,
+  # NEVER here — this file is committed to git.
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Scale to zero when idle → near-zero cost. Fly machines cold-start in
+  # ~1 second, so the first request after idle is barely slower.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

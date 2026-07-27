@@ -1,0 +1,88 @@
+# ────────────────────────────────────────────────────────────────
+# PathoFix Diagnostics — LOCAL TEST of the production stack.
+# Same topology you deploy (Caddy + API + Postgres), but served over
+# plain HTTP on http://localhost:8080 — no domain and no TLS needed.
+#
+#   docker compose -f docker-compose.local.yml up --build
+#
+# Then open http://localhost:8080  and  http://localhost:8080/admin
+#   Admin password (local only):  password
+#
+# No Node needed on your machine. DB credentials below are local-only
+# throwaways (loopback). Do not reuse any of this anywhere real — the
+# plaintext admin password works only outside production.
+# ────────────────────────────────────────────────────────────────
+name: pathofix-local
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pathofix
+      POSTGRES_PASSWORD: pathofix
+      POSTGRES_DB: pathofix
+    volumes:
+      - pgdata-local:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pathofix -d pathofix"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.migrate
+    environment:
+      DATABASE_URL: "postgres://pathofix:pathofix@db:5432/pathofix"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      # Development mode locally: enables the plaintext ADMIN_PASSWORD shortcut
+      # below and more verbose errors. Production uses NODE_ENV=production.
+      NODE_ENV: development
+      PORT: "5000"
+      DATABASE_URL: "postgres://pathofix:pathofix@db:5432/pathofix"
+      # Admin console login for LOCAL TESTING ONLY. Default password: "password".
+      # Override by exporting ADMIN_PASSWORD before `up`. This plaintext path is
+      # ignored in production, which requires ADMIN_PASSWORD_HASH instead.
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-password}"
+      # Optional: set a fixed session secret to keep logins across restarts.
+      # If blank, a temporary one is generated automatically in dev.
+      ADMIN_SESSION_SECRET: "${ADMIN_SESSION_SECRET:-}"
+      # Optional notifications (leave blank to skip)
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASS: "${SMTP_PASS:-}"
+      LAB_EMAIL: "${LAB_EMAIL:-}"
+      TG_BOT_TOKEN: "${TG_BOT_TOKEN:-}"
+      TG_CHAT_ID: "${TG_CHAT_ID:-}"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  caddy:
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+    environment:
+      # ":80" tells Caddy to serve plain HTTP with no certificate — perfect
+      # for local testing. Same image and Caddyfile used in production.
+      SITE_DOMAIN: ":80"
+      ACME_EMAIL: ""
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata-local:

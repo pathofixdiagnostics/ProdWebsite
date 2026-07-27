@@ -1,0 +1,153 @@
+Here's a clear prompt you can paste into Replit AI:
+
+---
+
+We need to update the notification system.
+
+### 1. Replace WhatsApp with Telegram
+
+Remove the WhatsApp integration completely. Due to CallMeBot limitations, we are no longer using WhatsApp.
+
+Instead, implement:
+
+* ✅ Telegram Group notification using the CallMeBot Telegram API.
+* ✅ Gmail email notification (keep the existing email functionality).
+
+Every successful form submission should send:
+
+1. A Telegram message.
+2. An email.
+
+---
+
+### 2. Dynamic Notification Templates
+
+The Telegram message and the email body should be generated dynamically based on the form submitted.
+
+Requirements:
+
+* Include **every field** from the submitted form.
+* If the user fills a field, display its value.
+* If the user leaves a field empty or optional, display:
+
+```
+Not provided by the user
+```
+
+instead of leaving it blank or omitting it.
+
+Example:
+
+```
+Patient Name:
+John Doe
+
+Phone Number:
+9876543210
+
+Email:
+Not provided by the user
+
+Additional Notes:
+Not provided by the user
+```
+
+The same logic should apply to **all forms**, including:
+
+* Book a Test
+* Partnership Application
+* Contact Form
+* Any future forms
+
+Do **not** hardcode the templates. Generate them dynamically from the submitted form fields.
+
+---
+
+### 3. Telegram Formatting
+
+Use Telegram HTML mode (`html=yes`) and create clean, readable notifications.
+
+Example:
+
+```
+🧪 NEW TEST BOOKING
+
+👤 Patient Name:
+John Doe
+
+📞 Phone Number:
+9876543210
+
+📧 Email:
+Not provided by the user
+
+🩸 Test Selected:
+Complete Body Checkup
+
+🚚 Collection Type:
+Visit Our Lab
+
+📅 Preferred Date:
+25-07-2026
+
+⏰ Preferred Time:
+10:30 AM
+
+📝 Additional Notes:
+Not provided by the user
+```
+
+Apply similar professional formatting for every form.
+
+---
+
+### 4. Email Formatting
+
+The email should contain the exact same information as the Telegram message, formatted professionally using HTML.
+
+Include:
+
+* Title/Header
+* Submission date & time
+* All submitted fields
+* "Not provided by the user" for empty fields
+
+The email should be easy to read on both desktop and mobile email clients.
+
+---
+
+### 5. Responsive Website
+
+Make the entire website fully responsive.
+
+Requirements:
+
+* Mobile-first responsive design.
+* Works properly on:
+
+  * Android phones
+  * iPhones
+  * Tablets
+  * Laptops
+  * Desktop monitors
+* No horizontal scrolling.
+* Proper spacing and padding on every screen size.
+* Buttons should be easy to tap on mobile.
+* Forms should resize correctly without overflowing.
+* Images and cards should scale appropriately.
+* Navigation, hero sections, cards, forms, and footer should all adapt to different screen sizes.
+
+Use modern responsive CSS (Flexbox/Grid and media queries) to ensure the UI looks professional across common screen resolutions.
+
+---
+
+### 6. Code Quality
+
+* Keep the code modular and reusable.
+* Avoid duplicated notification code.
+* Create reusable functions for:
+
+  * Telegram message generation
+  * Email template generation
+  * Field formatting
+* The solution should automatically support new form fields added in the future without requiring changes to the notification templates.

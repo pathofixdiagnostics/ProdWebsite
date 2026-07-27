@@ -1,0 +1,207 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification for Pathofix Diagnostics
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: partner
+    description: Partnership request operations
+  - name: booking
+    description: Test booking operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /partner:
+    post:
+      operationId: submitPartner
+      tags: [partner]
+      summary: Submit partnership request
+      description: Submits a partnership request form and sends email notification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerInput"
+      responses:
+        "200":
+          description: Partnership request submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /booking:
+    post:
+      operationId: submitBooking
+      tags: [booking]
+      summary: Submit a test booking
+      description: Submits a test booking request and sends confirmation email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingInput"
+      responses:
+        "200":
+          description: Booking submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    PartnerInput:
+      type: object
+      required:
+        - fullName
+        - organizationName
+        - organizationType
+        - email
+        - phone
+        - city
+      properties:
+        fullName:
+          type: string
+          minLength: 2
+        organizationName:
+          type: string
+          minLength: 2
+        organizationType:
+          type: string
+          enum: [hospital, clinic, doctor, healthCenter, collectionCenter]
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          minLength: 10
+        city:
+          type: string
+        message:
+          type: ["string", "null"]
+    PartnerResponse:
+      type: object
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+    BookingInput:
+      type: object
+      required:
+        - patientName
+        - phone
+        - testPackage
+        - preferredDate
+        - collectionType
+        - preferredTimeSlot
+      properties:
+        patientName:
+          type: string
+          minLength: 2
+        phone:
+          type: string
+          minLength: 10
+        email:
+          type: ["string", "null"]
+        testPackage:
+          type: string
+          minLength: 1
+        preferredDate:
+          type: string
+          description: ISO date string (YYYY-MM-DD)
+        collectionType:
+          type: string
+          enum: [homeCollection, labDropIn]
+        preferredTimeSlot:
+          type: string
+          enum:
+            - "08:00-09:00"
+            - "09:00-10:00"
+            - "10:00-11:00"
+            - "11:00-12:00"
+            - "12:00-13:00"
+            - "13:00-14:00"
+            - "14:00-15:00"
+            - "15:00-16:00"
+            - "16:00-17:00"
+            - "17:00-18:00"
+            - "18:00-19:00"
+            - "19:00-20:00"
+        address:
+          type: ["string", "null"]
+          description: Required when collectionType is homeCollection
+        notes:
+          type: ["string", "null"]
+    BookingResponse:
+      type: object
+      required:
+        - success
+        - message
+        - bookingId
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        bookingId:
+          type: integer
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
