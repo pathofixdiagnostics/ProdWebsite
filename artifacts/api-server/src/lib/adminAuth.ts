@@ -120,10 +120,15 @@ export function setSessionCookie(req: Request, res: Response, token: string): vo
   const forwarded = Array.isArray(proto) ? proto[0] : proto;
   const isHttps = forwarded === "https" || req.secure === true;
 
+  // Split hosting: frontend and API on different origins.
+  // SameSite=None is required for cross-origin cookies; it requires Secure=true.
+  // Fall back to "strict" for same-origin local Docker setup.
+  const crossOrigin = Boolean(process.env.CORS_ORIGIN);
+
   res.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
-    secure: isHttps,
-    sameSite: "strict",
+    secure: crossOrigin ? true : isHttps,
+    sameSite: crossOrigin ? "none" : "strict",
     maxAge: SESSION_TTL_MS,
     path: "/",
   });
