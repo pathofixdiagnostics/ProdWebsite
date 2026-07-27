@@ -86,7 +86,7 @@ router.post("/booking", async (req, res) => {
     const labEmail = process.env.LAB_EMAIL ?? "pathofixdiagnostics@gmail.com";
 
     const { subject, html } = buildEmailHtml(
-      "New Test Booking",
+      `Test Booking #${bookingId}`,
       `Action required — New booking #${bookingId} from ${data.patientName}`,
       fields,
       `<div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px;padding:14px 18px">

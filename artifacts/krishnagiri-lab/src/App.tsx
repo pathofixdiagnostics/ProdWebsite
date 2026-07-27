@@ -42,6 +42,7 @@ function Router() {
   // In-house page-view tracking on every route change (skips /admin).
   useEffect(() => {
     trackPageview(location);
+    window.scrollTo(0, 0);
   }, [location]);
 
   return (

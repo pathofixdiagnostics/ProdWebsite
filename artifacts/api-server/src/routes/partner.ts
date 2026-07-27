@@ -66,7 +66,7 @@ router.post("/partner", async (req, res) => {
     const labEmail = process.env.LAB_EMAIL ?? "pathofixdiagnostics@gmail.com";
 
     const { subject, html } = buildEmailHtml(
-      "New Partnership Request",
+      `Partner: ${data.organizationName}`,
       `New partner inquiry from ${data.organizationName} — ${data.city}`,
       fields,
       `<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:14px 18px">

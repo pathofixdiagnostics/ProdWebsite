@@ -73,7 +73,7 @@ export default function Home() {
               { line1: "10+",    line2: null,       label: "Years Experience", icon: Award },
               { line1: "50k+",   line2: null,       label: "Happy Patients",   icon: ShieldCheck },
               { line1: "300+",   line2: null,       label: "Tests Available",  icon: Activity },
-              { line1: "DOCTOR", line2: null,         label: "Run Lab",          icon: Stethoscope },
+              { line1: "DOCTOR", line2: null,         label: "Run Laboratory",   icon: Stethoscope },
             ].map((stat, i) => (
               <div key={i} className="text-center px-2 sm:px-4">
                 <stat.icon className="w-6 h-6 sm:w-8 sm:h-8 mx-auto text-primary mb-2 sm:mb-3 opacity-80" />
