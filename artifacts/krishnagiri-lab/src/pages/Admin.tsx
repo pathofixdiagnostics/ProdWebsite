@@ -76,8 +76,15 @@ type InsightsData = {
 
 // ── API helper ──────────────────────────────────────────────────────────
 
+const TOKEN_KEY = "pf_admin_token";
+
 async function api(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(`${API}${path}`, { credentials: "include", ...init });
+  const token = localStorage.getItem(TOKEN_KEY);
+  const headers: Record<string, string> = {
+    ...(init?.headers as Record<string, string>),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  return fetch(`${API}${path}`, { credentials: "include", ...init, headers });
 }
 
 // ── Utilities ───────────────────────────────────────────────────────────
@@ -464,6 +471,8 @@ export default function Admin() {
         body: JSON.stringify({ password }),
       });
       if (res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { token?: string };
+        if (data.token) localStorage.setItem(TOKEN_KEY, data.token);
         setPassword("");
         setPhase("ready");
         void loadStats();
@@ -479,6 +488,7 @@ export default function Admin() {
   }, [password, loadStats]);
 
   const logout = useCallback(async () => {
+    localStorage.removeItem(TOKEN_KEY);
     await api("/api/admin/logout", { method: "POST" }).catch(() => {});
     setStats(null);
     setBookings(null);

@@ -139,8 +139,18 @@ export function clearSessionCookie(res: Response): void {
 }
 
 export function isAuthenticated(req: Request): boolean {
-  const token = (req as Request & { cookies?: Record<string, string> }).cookies?.[SESSION_COOKIE];
-  return typeof token === "string" && verifySessionToken(token);
+  // Cookie-based (desktop browsers)
+  const cookieToken = (req as Request & { cookies?: Record<string, string> }).cookies?.[SESSION_COOKIE];
+  if (typeof cookieToken === "string" && verifySessionToken(cookieToken)) return true;
+
+  // Bearer token (mobile / Safari ITP blocks third-party cookies)
+  const auth = req.headers["authorization"];
+  if (typeof auth === "string" && auth.startsWith("Bearer ")) {
+    const bearerToken = auth.slice(7);
+    if (verifySessionToken(bearerToken)) return true;
+  }
+
+  return false;
 }
 
 /** Gate for every admin-only endpoint. */

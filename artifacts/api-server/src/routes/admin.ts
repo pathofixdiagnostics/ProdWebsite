@@ -37,7 +37,7 @@ router.post("/admin/login", loginLimiter, (req, res) => {
     return;
   }
   setSessionCookie(req, res, token);
-  res.json({ ok: true });
+  res.json({ ok: true, token });
 });
 
 router.post("/admin/logout", (_req, res) => {
