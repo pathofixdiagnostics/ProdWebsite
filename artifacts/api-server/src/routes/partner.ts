@@ -1,10 +1,10 @@
 import { Router } from "express";
-import nodemailer from "nodemailer";
 import { db } from "@workspace/db";
 import { partnerRequestsTable } from "@workspace/db";
 import { SubmitPartnerBody } from "@workspace/api-zod";
 import { sendTelegram, telegramConfigured } from "../lib/telegram";
 import { buildTelegramMessage, buildEmailHtml, type NotificationField } from "../lib/notifications";
+import { emailConfigured, sendEmail } from "../lib/email";
 
 const router = Router();
 
@@ -16,24 +16,6 @@ const ORG_TYPE_LABELS: Record<string, string> = {
   collectionCenter: "Collection Center",
 };
 
-function makeTransporter() {
-  if (process.env.SMTP_HOST) {
-    return nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT ?? "587", 10),
-      secure: process.env.SMTP_PORT === "465",
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    });
-  }
-  return nodemailer.createTransport({
-    service: "gmail",
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  });
-}
-
-function smtpConfigured() {
-  return !!(process.env.SMTP_USER && process.env.SMTP_PASS);
-}
 
 router.post("/partner", async (req, res) => {
   const parsed = SubmitPartnerBody.safeParse(req.body);
@@ -80,9 +62,8 @@ router.post("/partner", async (req, res) => {
     );
   }
 
-  if (smtpConfigured()) {
+  if (emailConfigured()) {
     const labEmail = process.env.LAB_EMAIL ?? "pathofixdiagnostics@gmail.com";
-    const transporter = makeTransporter();
 
     const { subject, html } = buildEmailHtml(
       "New Partnership Request",
@@ -95,8 +76,7 @@ router.post("/partner", async (req, res) => {
       </div>`
     );
 
-    transporter
-      .sendMail({ from: process.env.SMTP_USER, to: labEmail, subject, html })
+    sendEmail({ to: labEmail, subject, html })
       .catch((err) => req.log.error({ err }, "Failed to send partner email"));
   }
 

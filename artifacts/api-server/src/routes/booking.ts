@@ -1,10 +1,10 @@
 import { Router } from "express";
-import nodemailer from "nodemailer";
 import { db } from "@workspace/db";
 import { bookingsTable } from "@workspace/db";
 import { SubmitBookingBody } from "@workspace/api-zod";
 import { sendTelegram, telegramConfigured } from "../lib/telegram";
 import { buildTelegramMessage, buildEmailHtml, type NotificationField } from "../lib/notifications";
+import { emailConfigured, sendEmail } from "../lib/email";
 
 const router = Router();
 
@@ -23,26 +23,6 @@ const TIME_SLOT_LABELS: Record<string, string> = {
   "19:00-20:00": "7:00 PM – 8:00 PM",
 };
 
-function makeTransporter() {
-  // Use explicit host/port when provided; fall back to gmail service shorthand.
-  if (process.env.SMTP_HOST) {
-    return nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT ?? "587", 10),
-      secure: process.env.SMTP_PORT === "465",
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    });
-  }
-  return nodemailer.createTransport({
-    service: "gmail",
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  });
-}
-
-function smtpConfigured() {
-  // SMTP_HOST is optional — gmail service works with just user + pass.
-  return !!(process.env.SMTP_USER && process.env.SMTP_PASS);
-}
 
 router.post("/booking", async (req, res) => {
   const parsed = SubmitBookingBody.safeParse(req.body);
@@ -102,9 +82,8 @@ router.post("/booking", async (req, res) => {
     );
   }
 
-  if (smtpConfigured()) {
+  if (emailConfigured()) {
     const labEmail = process.env.LAB_EMAIL ?? "pathofixdiagnostics@gmail.com";
-    const transporter = makeTransporter();
 
     const { subject, html } = buildEmailHtml(
       "New Test Booking",
@@ -117,8 +96,7 @@ router.post("/booking", async (req, res) => {
       </div>`
     );
 
-    transporter
-      .sendMail({ from: process.env.SMTP_USER, to: labEmail, subject, html })
+    sendEmail({ to: labEmail, subject, html })
       .catch((err) => req.log.error({ err }, "Failed to send booking email"));
   }
 
