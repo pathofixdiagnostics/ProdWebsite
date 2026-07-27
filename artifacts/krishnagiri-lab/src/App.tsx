@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -17,6 +17,12 @@ import { trackPageview } from "./lib/analytics";
 
 const queryClient = new QueryClient();
 
+function RedirectHome() {
+  const [, navigate] = useLocation();
+  useEffect(() => { navigate("/"); }, []);
+  return null;
+}
+
 // The public marketing site, wrapped in the shared Navbar/Footer layout.
 function PublicSite() {
   return (
@@ -29,7 +35,7 @@ function PublicSite() {
         <Route path="/partner" component={Partner} />
         <Route path="/contact" component={Contact} />
         <Route path="/book" component={BookTest} />
-        <Route><Redirect to="/" /></Route>
+        <Route component={RedirectHome} />
       </Switch>
     </Layout>
   );
