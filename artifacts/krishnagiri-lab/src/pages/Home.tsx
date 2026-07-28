@@ -45,7 +45,7 @@ export default function Home() {
           >
             <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs sm:text-sm font-semibold text-primary">
               <span className="flex h-2 w-2 rounded-full bg-primary mr-2 animate-pulse"></span>
-              Trusted by 50,000+ Patients in Krishnagiri
+              Trusted by 2,000+ Patients in Krishnagiri
             </div>
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-bold tracking-tight text-slate-900 leading-[1.15]">
               {BUSINESS_DETAILS.tagline}
@@ -70,8 +70,8 @@ export default function Home() {
         <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 p-5 sm:p-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8">
             {[
-              { line1: "10+",    line2: null,       label: "Years Experience", icon: Award },
-              { line1: "50k+",   line2: null,       label: "Happy Patients",   icon: ShieldCheck },
+              { line1: "3+",     line2: null,       label: "Years Experience", icon: Award },
+              { line1: "2k+",    line2: null,       label: "Happy Patients",   icon: ShieldCheck },
               { line1: "300+",   line2: null,       label: "Tests Available",  icon: Activity },
               { line1: "DOCTOR", line2: null,         label: "Run Laboratory",   icon: Stethoscope },
             ].map((stat, i) => (
@@ -211,7 +211,6 @@ export default function Home() {
                 {[
                   { icon: Droplets, text: "Flat 25% off on all Blood & Urine Tests" },
                   { icon: FlaskConical, text: "Priority sample collection — no waiting" },
-                  { icon: HeartPulse, text: "Free health consultation on report collection" },
                   { icon: CheckCircle2, text: "Valid for your entire family for 1 year" },
                 ].map(({ icon: Icon, text }) => (
                   <li key={text} className="flex items-center gap-3 text-sm sm:text-base text-white/90">
@@ -272,7 +271,7 @@ export default function Home() {
                 {/* Floating badge */}
                 <div className="absolute -top-4 -right-4 bg-white text-primary rounded-2xl px-4 py-2 shadow-xl font-bold text-sm text-center leading-tight">
                   Save up to<br />
-                  <span className="text-2xl text-primary">₹ 1000+</span><br />
+                  <span className="text-2xl text-primary">₹ 4000+</span><br />
                   per year
                 </div>
               </div>

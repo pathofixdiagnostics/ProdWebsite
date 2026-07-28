@@ -50,12 +50,6 @@ export const TEST_PACKAGES = [
     tests: ["Fasting Blood Sugar", "Post Prandial Sugar", "HbA1c", "GTT"]
   },
   {
-    id: "women",
-    name: "Women Health Package",
-    icon: "User",
-    tests: ["Hormone Tests", "Thyroid Profile", "CBC", "Urine", "Antenatal Screening"]
-  },
-  {
     id: "full-body",
     name: "Full Body Checkup",
     icon: "UserCheck",
